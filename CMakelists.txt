@@ -1,0 +1,9 @@
+set(COMPONENT_SRCDIRS "."
+"deps/parson"
+)
+
+set(COMPONENT_ADD_INCLUDEDIRS "." 
+"deps"
+"deps/parson"
+)
+register_component()
