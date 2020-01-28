@@ -8,16 +8,19 @@
 #define URL_SIZE 1024
 #define PEM_SIZE 4096
 
-static const char* TAG = "firmware";
+extern const char ca_pem_start[] asm("_binary_ca_pem_start");
+extern const char ca_pem_end[] asm("_binary_ca_pem_end");
+
+static const char *TAG = "firmware";
 static Firmware firmware;
 static char ota_write_data[BUFFSIZE + 1] = {0};
 
-static esp_err_t validate_image_header(esp_app_desc_t* new_app_info) {
+static esp_err_t validate_image_header(esp_app_desc_t *new_app_info) {
   if (new_app_info == NULL) {
     return ESP_ERR_INVALID_ARG;
   }
-  const esp_partition_t* running = esp_ota_get_running_partition();
-  const esp_partition_t* last_invalid_app =
+  const esp_partition_t *running = esp_ota_get_running_partition();
+  const esp_partition_t *last_invalid_app =
       esp_ota_get_last_invalid_partition();
 
   esp_app_desc_t running_app_info;
@@ -47,9 +50,8 @@ static esp_err_t validate_image_header(esp_app_desc_t* new_app_info) {
   }
   if (memcmp(new_app_info->version, running_app_info.version,
              sizeof(new_app_info->version)) == 0) {
-    ESP_LOGW(TAG,
-             "Current running version is the same as a new. We will not "
-             "continue the update.");
+    ESP_LOGW(TAG, "Current running version is the same as a new. We will not "
+                  "continue the update.");
     firmware.is_latest_version = true;
     return ESP_FAIL;
   }
@@ -57,71 +59,55 @@ static esp_err_t validate_image_header(esp_app_desc_t* new_app_info) {
 }
 
 esp_err_t firmware_init(void) {
-  firmware.pem = NULL;
   firmware.url = NULL;
   firmware.is_latest_version = false;
   return ESP_OK;
 }
 
-esp_err_t firmware_set_cert_pem(char* pem) {
-  if (pem == NULL) return ESP_FAIL;
-  size_t length = strlen(pem) + 1;
-  if (firmware.pem != NULL) {
-    free(firmware.pem);
-  }
-  firmware.pem = (char*)malloc(sizeof(char) * (length));
-  strncpy(firmware.pem, pem, length);
-  firmware.is_latest_version = false;
-  ESP_LOGI(TAG, "Setting firmware pem : %s", firmware.pem);
-  return ESP_OK;
-}
-esp_err_t firmware_set_url(char* url) {
-  if (url == NULL) return ESP_FAIL;
+esp_err_t firmware_set_url(char *url) {
+  if (url == NULL)
+    return ESP_FAIL;
   size_t length = strlen(url) + 1;
   if (firmware.url != NULL) {
     free(firmware.url);
   }
-  firmware.url = (char*)malloc(sizeof(char) * (length));
+  firmware.url = (char *)malloc(sizeof(char) * (length));
   strncpy(firmware.url, url, length);
   ESP_LOGI(TAG, "Setting firmware url : %s %d", firmware.url, strlen(url));
   firmware.is_latest_version = false;
   return ESP_OK;
 }
 
-void firmware_parse_from_json(const char* json,
+void firmware_parse_from_json(const char *json,
                               DEVICE_TWIN_STATE update_state) {
-  JSON_Value* root_value = json_parse_string(json);
-  JSON_Object* root_object = json_value_get_object(root_value);
+  JSON_Value *root_value = json_parse_string(json);
+  JSON_Object *root_object = json_value_get_object(root_value);
   char name[50];
   if (update_state == UPDATE_PARTIAL) {
     sprintf(name, "firmware");
   } else if (update_state == UPDATE_COMPLETE) {
     sprintf(name, "desired.firmware");
   }
-  JSON_Object* json_object_firmware =
+  JSON_Object *json_object_firmware =
       json_object_dotget_object(root_object, name);
   if (json_object_get_value(json_object_firmware, "url") != NULL) {
-    char* url = (char*)json_object_get_string(json_object_firmware, "url");
+    char *url = (char *)json_object_get_string(json_object_firmware, "url");
     firmware_set_url(url);
-  }
-  if (json_object_get_value(json_object_firmware, "pem") != NULL) {
-    char* pem = (char*)json_object_get_string(json_object_firmware, "pem");
-    firmware_set_cert_pem(pem);
   }
   json_value_free(root_value);
 }
 void firmware_update(void) {
   esp_err_t err;
   esp_ota_handle_t update_handle = 0;
-  const esp_partition_t* update_partition = NULL;
+  const esp_partition_t *update_partition = NULL;
   esp_http_client_handle_t client = NULL;
-  if (firmware.url == NULL || firmware.pem == NULL) {
-    ESP_LOGE(TAG, "firmware url or cert pem is null");
+  if (firmware.url == NULL) {
+    ESP_LOGE(TAG, "firmware url is null");
     goto OTA_FAIL;
   }
   esp_http_client_config_t config = {
       .url = firmware.url,
-      .cert_pem = firmware.pem,
+      .cert_pem = (char *)ca_pem_start,
   };
   client = esp_http_client_init(&config);
   if (client == NULL) {
@@ -172,7 +158,7 @@ void firmware_update(void) {
         }
       }
       err =
-          esp_ota_write(update_handle, (const void*)ota_write_data, data_read);
+          esp_ota_write(update_handle, (const void *)ota_write_data, data_read);
       if (err != ESP_OK) {
         goto OTA_FAIL;
       }

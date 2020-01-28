@@ -24,14 +24,12 @@ extern "C" {
 #include "parson.h"
 
 typedef struct FIRMWARE_TAG {
-  char* url;
-  char* pem;
+  char *url;
   bool is_latest_version;
 } Firmware;
 esp_err_t firmware_init(void);
-esp_err_t firmware_set_cert_pem(char* pem);
-esp_err_t firmware_set_url(char* url);
-void firmware_parse_from_json(const char* json, DEVICE_TWIN_STATE update_state);
+esp_err_t firmware_set_url(char *url);
+void firmware_parse_from_json(const char *json, DEVICE_TWIN_STATE update_state);
 void firmware_update(void);
 bool firmware_is_latest_version(void);
 #ifdef __cplusplus
